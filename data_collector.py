@@ -95,6 +95,8 @@ class DatabaseManager:
         """Create tables if they don't exist"""
         with self._lock:
             conn = sqlite3.connect(self.db_path)
+            # Enable WAL mode for better concurrent read/write performance
+            conn.execute("PRAGMA journal_mode=WAL;")
             cursor = conn.cursor()
             
             # Ticks table
