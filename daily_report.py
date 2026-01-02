@@ -455,15 +455,49 @@ class ChartGenerator:
             # Only draw trades on M1 and M5 to avoid clutter
             if name in ['M1', 'M5']:
                 for trade in battle.trades:
-                    # Entry
-                    if df.index[0] <= trade.open_time <= df.index[-1]:
-                        color = '#00ff88' if trade.profit >= 0 else '#ff4757'
-                        ax.axhline(y=trade.open_price, color=color, linestyle='--', linewidth=1, alpha=0.8)
-                        ax.plot(trade.open_time, trade.open_price, marker='o', color=color, markersize=4)
+                    # Use trade times directly (test script already uses MT5 time)
+                    t_open = trade.open_time
+                    t_close = trade.close_time
                     
-                    # Exit
-                    if df.index[0] <= trade.close_time <= df.index[-1]:
-                         ax.plot(trade.close_time, trade.close_price, marker='x', color='white', markersize=4)
+                    # Check visibility (at least one point in range)
+                    chart_start = df.index[0]
+                    chart_end = df.index[-1]
+                    is_entry_visible = chart_start <= t_open <= chart_end
+                    is_exit_visible = chart_start <= t_close <= chart_end
+                    
+                    if not (is_entry_visible or is_exit_visible):
+                        continue  # Skip if completely outside
+                    
+                    color = '#00ff88' if trade.profit >= 0 else '#ff4757'
+                    
+                    # 1. Dashed Connector Line (Entry -> Exit)
+                    ax.plot([t_open, t_close], 
+                            [trade.open_price, trade.close_price],
+                            color=color, linestyle='--', linewidth=1.5, alpha=0.8, zorder=3)
+                    
+                    # 2. Entry Arrow (▲ = BUY, ▼ = SELL)
+                    if is_entry_visible:
+                        marker = '^' if trade.order_type == 'BUY' else 'v'
+                        ax.plot(t_open, trade.open_price, 
+                                marker=marker, color=color, 
+                                markersize=12, markeredgecolor='white', markeredgewidth=1.5, zorder=5)
+                    
+                    # 3. Exit X Marker
+                    if is_exit_visible:
+                        ax.plot(t_close, trade.close_price, 
+                                marker='X', color='white', 
+                                markersize=10, markeredgecolor=color, markeredgewidth=1.5, zorder=5)
+                        
+                        # 4. P&L Label Box
+                        ax.annotate(
+                            f'${trade.profit:+.2f}',
+                            xy=(t_close, trade.close_price),
+                            xytext=(8, 12 if trade.profit >= 0 else -12),
+                            textcoords='offset points',
+                            fontsize=9, fontweight='bold', color='white',
+                            bbox=dict(boxstyle='round,pad=0.3', fc=color, ec='none', alpha=0.9),
+                            zorder=6
+                        )
 
             # Draw News
             if news_events and name in ['M5', 'M1']:

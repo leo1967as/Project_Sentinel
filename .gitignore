@@ -1,9 +1,9 @@
 # Environment Variables & Secrets
 .env
+*.env
 env/
 venv/
 .venv/
-*.env
 
 # Python
 __pycache__/
@@ -40,13 +40,10 @@ logs/
 *.log
 database/*.db
 database/*.sqlite
-database/sentinel_data.db
 charts/
 *.png
 *.jpg
 temp/
-tests/repro_*.py
-tests/debug_*.py
 
 # Operating System
 .DS_Store
