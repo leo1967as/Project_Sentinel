@@ -159,31 +159,49 @@ class StagingTab(QWidget):
     def refresh_battles(self):
         """Load battles from JournalManager"""
         self.battle_list.clear()
-        self.battles = self.journal_manager.sync_battles()
-        
-        # Sort by start time desc
-        self.battles.sort(key=lambda x: x['start_time'], reverse=True)
-        
-        for b in self.battles:
-            time_str = datetime.fromisoformat(b['start_time']).strftime("%H:%M")
-            pnl = b['pnl']
-            count = b['trade_count']
-            status = b.get('status', 'pending')
+        try:
+            self.battles = self.journal_manager.sync_battles()
             
-            # Format Item Text
-            status_icon = "✅" if status == 'analyzed' else "⏳"
-            text = f"{status_icon} {time_str} | ${pnl:+.2f} | {count} Runs"
-            
-            item = QListWidgetItem(text)
-            item.setData(Qt.UserRole, b['battle_id'])
-            
-            # Color coding
-            if pnl > 0:
-                item.setForeground(QColor('#00ff88'))
-            else:
-                item.setForeground(QColor('#ff4757'))
+            # Sort by start time desc (handle both str and datetime just in case)
+            def get_time(item):
+                t = item.get('start_time', '')
+                return str(t)
                 
-            self.battle_list.addItem(item)
+            self.battles.sort(key=get_time, reverse=True)
+            
+            for b in self.battles:
+                try:
+                    start_t = b.get('start_time')
+                    if isinstance(start_t, datetime):
+                        time_str = start_t.strftime("%H:%M")
+                    else:
+                        # Assume ISO string
+                        time_str = datetime.fromisoformat(str(start_t)).strftime("%H:%M")
+                except Exception:
+                    time_str = "??"
+
+                pnl = b.get('pnl', 0.0)
+                count = b.get('trade_count', 0)
+                status = b.get('status', 'pending')
+                
+                # Format Item Text
+                status_icon = "✅" if status == 'analyzed' else "⏳"
+                text = f"{status_icon} {time_str} | ${pnl:+.2f} | {count} Runs"
+                
+                item = QListWidgetItem(text)
+                item.setData(Qt.UserRole, b['battle_id'])
+                
+                # Color coding
+                if pnl > 0:
+                    item.setForeground(QColor('#00ff88'))
+                else:
+                    item.setForeground(QColor('#ff4757'))
+                    
+                self.battle_list.addItem(item)
+                
+        except Exception as e:
+            logging.error(f"Error refreshing battles: {e}")
+            self.battle_list.addItem(f"Error: {e}")
             
     def _on_battle_selected(self, item):
         battle_id = item.data(Qt.UserRole)
