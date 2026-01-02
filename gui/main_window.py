@@ -177,7 +177,7 @@ class IntegratedDataWorker(QThread):
         self._last_tick_time = 0
     
     def run(self):
-        """Main collection loop with REAL tick collection"""
+        """Main collection loop with REAL tick collection + Trade sync"""
         self._running = True
         self.log.emit("INFO", "Starting Data Worker...")
         
@@ -185,6 +185,12 @@ class IntegratedDataWorker(QThread):
             # Initialize database
             db_path = Path(__file__).parent.parent / "database" / "sentinel_data.db"
             self._db = DatabaseManager(db_path)
+            
+            # Initialize TradeCollector for auto-sync
+            from data_collector import TradeCollector
+            self._trade_collector = TradeCollector(self._db)
+            last_trade_sync = datetime.now()
+            TRADE_SYNC_INTERVAL = 60  # Sync trades every 60 seconds
             
             # Get initial stats
             stats = self._db.get_stats()
@@ -213,6 +219,7 @@ class IntegratedDataWorker(QThread):
             last_stats_time = datetime.now()
             
             self.log.emit("INFO", f"Tick collection started for {self.SYMBOL}")
+            self.log.emit("INFO", f"Trade sync enabled (every {TRADE_SYNC_INTERVAL}s)")
             
             while self._running:
                 # Collect tick
@@ -252,6 +259,16 @@ class IntegratedDataWorker(QThread):
                     })
                     tick_count_interval = 0
                     last_stats_time = now
+                
+                # Auto-sync trades every TRADE_SYNC_INTERVAL seconds
+                if (now - last_trade_sync).total_seconds() >= TRADE_SYNC_INTERVAL:
+                    try:
+                        synced = self._trade_collector.sync_trades()
+                        if synced > 0:
+                            self.log.emit("INFO", f"Auto-synced {synced} trades")
+                    except Exception as e:
+                        self.log.emit("ERROR", f"Trade sync error: {e}")
+                    last_trade_sync = now
                 
                 self.msleep(100)  # 100ms polling
                 
