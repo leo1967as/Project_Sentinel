@@ -1,0 +1,85 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+PySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1
+rootdir: D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel
+plugins: qt-4.5.0
+collected 6 items
+
+tests\test_settings_dialog.py EEEE                                       [ 66%]
+tests\test_main_window.py EE                                             [100%]
+
+=================================== ERRORS ====================================
+_________________ ERROR at setup of test_settings_dialog_init _________________
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py, line 23
+  def test_settings_dialog_init(settings_dialog):
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py, line 14
+  @pytest.fixture
+  def settings_dialog(qtbot, mocker):
+E       fixture 'mocker' not found
+>       available fixtures: app, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, qapp, qapp_args, qapp_cls, qtbot, qtlog, qtmodeltester, record_property, record_testsuite_property, record_xml_attribute, recwarn, settings_dialog, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py:14
+_____________ ERROR at setup of test_settings_dialog_fields_exist _____________
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py, line 28
+  def test_settings_dialog_fields_exist(settings_dialog):
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py, line 14
+  @pytest.fixture
+  def settings_dialog(qtbot, mocker):
+E       fixture 'mocker' not found
+>       available fixtures: app, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, qapp, qapp_args, qapp_cls, qtbot, qtlog, qtmodeltester, record_property, record_testsuite_property, record_xml_attribute, recwarn, settings_dialog, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py:14
+____________________ ERROR at setup of test_load_settings _____________________
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py, line 38
+  def test_load_settings(settings_dialog, mocker):
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py, line 14
+  @pytest.fixture
+  def settings_dialog(qtbot, mocker):
+E       fixture 'mocker' not found
+>       available fixtures: app, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, qapp, qapp_args, qapp_cls, qtbot, qtlog, qtmodeltester, record_property, record_testsuite_property, record_xml_attribute, recwarn, settings_dialog, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py:14
+____________________ ERROR at setup of test_save_settings _____________________
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py, line 56
+  def test_save_settings(settings_dialog, mocker):
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py, line 14
+  @pytest.fixture
+  def settings_dialog(qtbot, mocker):
+E       fixture 'mocker' not found
+>       available fixtures: app, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, qapp, qapp_args, qapp_cls, qtbot, qtlog, qtmodeltester, record_property, record_testsuite_property, record_xml_attribute, recwarn, settings_dialog, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_settings_dialog.py:14
+___________________ ERROR at setup of test_main_window_init ___________________
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_main_window.py, line 29
+  def test_main_window_init(main_window):
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_main_window.py, line 11
+  @pytest.fixture
+  def main_window(qtbot, mocker):
+E       fixture 'mocker' not found
+>       available fixtures: app, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, main_window, monkeypatch, pytestconfig, qapp, qapp_args, qapp_cls, qtbot, qtlog, qtmodeltester, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_main_window.py:11
+________________ ERROR at setup of test_settings_saved_handler ________________
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_main_window.py, line 34
+  def test_settings_saved_handler(main_window, mocker):
+file D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_main_window.py, line 11
+  @pytest.fixture
+  def main_window(qtbot, mocker):
+E       fixture 'mocker' not found
+>       available fixtures: app, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, main_window, monkeypatch, pytestconfig, qapp, qapp_args, qapp_cls, qtbot, qtlog, qtmodeltester, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel\tests\test_main_window.py:11
+=========================== short test summary info ===========================
+ERROR tests/test_settings_dialog.py::test_settings_dialog_init
+ERROR tests/test_settings_dialog.py::test_settings_dialog_fields_exist
+ERROR tests/test_settings_dialog.py::test_load_settings
+ERROR tests/test_settings_dialog.py::test_save_settings
+ERROR tests/test_main_window.py::test_main_window_init
+ERROR tests/test_main_window.py::test_settings_saved_handler
+============================== 6 errors in 0.78s ==============================

@@ -1,0 +1,125 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+PySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1
+rootdir: D:\CodingNoGoogle\ProgramETC\Trading\Project_Sentinel
+plugins: mock-3.15.1, qt-4.5.0
+collected 6 items
+
+tests\test_settings_dialog.py EEEE                                       [ 66%]
+tests\test_main_window.py ..                                             [100%]
+
+=================================== ERRORS ====================================
+_________________ ERROR at setup of test_settings_dialog_init _________________
+
+qtbot = <pytestqt.qtbot.QtBot object at 0x0000017D7F322D50>
+mocker = <pytest_mock.plugin.MockerFixture object at 0x0000017D7F322CC0>
+
+    @pytest.fixture
+    def settings_dialog(qtbot, mocker):
+        """Fixture to create SettingsDialog with mocked parent"""
+        # Mock parent to avoid side effects
+        parent = mocker.Mock(spec=SentinelMainWindow)
+>       dialog = SettingsDialog(parent)
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_settings_dialog.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <[RuntimeError("'__init__' method of object's base class (SettingsDialog) not called.") raised in repr()] SettingsDialog object at 0x17d5fbd5e00>
+parent = <Mock spec='SentinelMainWindow' id='1638496243200'>
+
+    def __init__(self, parent=None):
+>       super().__init__(parent)
+E       ValueError: 'PySide6.QtWidgets.QDialog.__init__' called with wrong argument values:
+E         PySide6.QtWidgets.QDialog.__init__(<Mock spec='SentinelMainWindow' id='1638496243200'>,)
+E       Found signature:
+E         PySide6.QtWidgets.QDialog.__init__(parent: PySide6.QtWidgets.QWidget | None = None, f: PySide6.QtCore.Qt.WindowType = Default(Qt.WindowFlags), *, sizeGripEnabled: bool | None = None, modal: bool | None = None)
+
+gui\dialogs\settings_dialog.py:22: ValueError
+_____________ ERROR at setup of test_settings_dialog_fields_exist _____________
+
+qtbot = <pytestqt.qtbot.QtBot object at 0x0000017D7FA083B0>
+mocker = <pytest_mock.plugin.MockerFixture object at 0x0000017D7FA09F40>
+
+    @pytest.fixture
+    def settings_dialog(qtbot, mocker):
+        """Fixture to create SettingsDialog with mocked parent"""
+        # Mock parent to avoid side effects
+        parent = mocker.Mock(spec=SentinelMainWindow)
+>       dialog = SettingsDialog(parent)
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_settings_dialog.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <[RuntimeError("'__init__' method of object's base class (SettingsDialog) not called.") raised in repr()] SettingsDialog object at 0x17d7f370fc0>
+parent = <Mock spec='SentinelMainWindow' id='1638523773312'>
+
+    def __init__(self, parent=None):
+>       super().__init__(parent)
+E       ValueError: 'PySide6.QtWidgets.QDialog.__init__' called with wrong argument values:
+E         PySide6.QtWidgets.QDialog.__init__(<Mock spec='SentinelMainWindow' id='1638523773312'>,)
+E       Found signature:
+E         PySide6.QtWidgets.QDialog.__init__(parent: PySide6.QtWidgets.QWidget | None = None, f: PySide6.QtCore.Qt.WindowType = Default(Qt.WindowFlags), *, sizeGripEnabled: bool | None = None, modal: bool | None = None)
+
+gui\dialogs\settings_dialog.py:22: ValueError
+____________________ ERROR at setup of test_load_settings _____________________
+
+qtbot = <pytestqt.qtbot.QtBot object at 0x0000017D7FA0B2F0>
+mocker = <pytest_mock.plugin.MockerFixture object at 0x0000017D7FA0AC00>
+
+    @pytest.fixture
+    def settings_dialog(qtbot, mocker):
+        """Fixture to create SettingsDialog with mocked parent"""
+        # Mock parent to avoid side effects
+        parent = mocker.Mock(spec=SentinelMainWindow)
+>       dialog = SettingsDialog(parent)
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_settings_dialog.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <[RuntimeError("'__init__' method of object's base class (SettingsDialog) not called.") raised in repr()] SettingsDialog object at 0x17d7fa0c680>
+parent = <Mock spec='SentinelMainWindow' id='1638523777440'>
+
+    def __init__(self, parent=None):
+>       super().__init__(parent)
+E       ValueError: 'PySide6.QtWidgets.QDialog.__init__' called with wrong argument values:
+E         PySide6.QtWidgets.QDialog.__init__(<Mock spec='SentinelMainWindow' id='1638523777440'>,)
+E       Found signature:
+E         PySide6.QtWidgets.QDialog.__init__(parent: PySide6.QtWidgets.QWidget | None = None, f: PySide6.QtCore.Qt.WindowType = Default(Qt.WindowFlags), *, sizeGripEnabled: bool | None = None, modal: bool | None = None)
+
+gui\dialogs\settings_dialog.py:22: ValueError
+____________________ ERROR at setup of test_save_settings _____________________
+
+qtbot = <pytestqt.qtbot.QtBot object at 0x0000017D7FA09850>
+mocker = <pytest_mock.plugin.MockerFixture object at 0x0000017D7FA09640>
+
+    @pytest.fixture
+    def settings_dialog(qtbot, mocker):
+        """Fixture to create SettingsDialog with mocked parent"""
+        # Mock parent to avoid side effects
+        parent = mocker.Mock(spec=SentinelMainWindow)
+>       dialog = SettingsDialog(parent)
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_settings_dialog.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <[RuntimeError("'__init__' method of object's base class (SettingsDialog) not called.") raised in repr()] SettingsDialog object at 0x17d7fa4f540>
+parent = <Mock spec='SentinelMainWindow' id='1638523770720'>
+
+    def __init__(self, parent=None):
+>       super().__init__(parent)
+E       ValueError: 'PySide6.QtWidgets.QDialog.__init__' called with wrong argument values:
+E         PySide6.QtWidgets.QDialog.__init__(<Mock spec='SentinelMainWindow' id='1638523770720'>,)
+E       Found signature:
+E         PySide6.QtWidgets.QDialog.__init__(parent: PySide6.QtWidgets.QWidget | None = None, f: PySide6.QtCore.Qt.WindowType = Default(Qt.WindowFlags), *, sizeGripEnabled: bool | None = None, modal: bool | None = None)
+
+gui\dialogs\settings_dialog.py:22: ValueError
+=========================== short test summary info ===========================
+ERROR tests/test_settings_dialog.py::test_settings_dialog_init - ValueError: ...
+ERROR tests/test_settings_dialog.py::test_settings_dialog_fields_exist - Valu...
+ERROR tests/test_settings_dialog.py::test_load_settings - ValueError: 'PySide...
+ERROR tests/test_settings_dialog.py::test_save_settings - ValueError: 'PySide...
+========================= 2 passed, 4 errors in 1.29s =========================
