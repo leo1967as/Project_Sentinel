@@ -21,7 +21,7 @@ from PySide6.QtGui import QAction, QCloseEvent
 
 from .widgets import (
     ConnectionCard, QuickStatsCard, ControlPanel,
-    PnLGaugeWidget, PositionsTableWidget, ModeIndicatorWidget,
+    PnLDisplayWidget, PositionsTableWidget, ModeIndicatorWidget,
     TickStatsWidget, NewsTableWidget, LogViewerWidget
 )
 from .workers.report_worker import ReportGenWorker
@@ -384,7 +384,7 @@ class SentinelMainWindow(QMainWindow):
         dashboard_tab = QWidget()
         dashboard_layout = QVBoxLayout(dashboard_tab)
         
-        self.pnl_gauge = PnLGaugeWidget()
+        self.pnl_gauge = PnLDisplayWidget()
         dashboard_layout.addWidget(self.pnl_gauge)
         
         self.positions_table = PositionsTableWidget()
@@ -740,7 +740,7 @@ class SentinelMainWindow(QMainWindow):
     
     @Slot(float)
     def _on_pnl_updated(self, pnl: float) -> None:
-        self.pnl_gauge.set_value(pnl)
+        self.pnl_gauge.update_pnl(pnl)
         self.quick_stats.update_pnl(pnl)
     
     @Slot(list)
