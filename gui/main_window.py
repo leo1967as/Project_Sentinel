@@ -22,7 +22,8 @@ from PySide6.QtGui import QAction, QCloseEvent
 from .widgets import (
     ConnectionCard, QuickStatsCard, ControlPanel,
     PnLDisplayWidget, PositionsTableWidget, ModeIndicatorWidget,
-    TickStatsWidget, NewsTableWidget, LogViewerWidget
+    TickStatsWidget, NewsTableWidget, LogViewerWidget,
+    StagingTab
 )
 from .workers.report_worker import ReportGenWorker
 from .dialogs import SettingsDialog
@@ -391,6 +392,10 @@ class SentinelMainWindow(QMainWindow):
         dashboard_layout.addWidget(self.positions_table)
         
         self.tabs.addTab(dashboard_tab, "📊 Dashboard")
+        
+        # Staging Tab
+        self.staging_tab = StagingTab()
+        self.tabs.addTab(self.staging_tab, "🕵️ Journal")
         
         # Data Tab
         data_tab = QWidget()

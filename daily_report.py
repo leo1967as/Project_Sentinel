@@ -38,6 +38,7 @@ import matplotlib.patches as mpatches
 from matplotlib.ticker import AutoMinorLocator
 import numpy as np
 import pandas as pd
+from data_collector import DatabaseManager
 import MetaTrader5 as mt5
 
 # Local imports
@@ -924,6 +925,182 @@ class DiscordNotifier:
             logger.info(f"Successfully sent {len(segments)} report segments")
             return True
         return False
+
+# =============================================================================
+# JOURNAL MANAGER (Staging)
+# =============================================================================
+
+class JournalManager:
+    """Manages trading journal, staging, and manual analysis"""
+    
+    def __init__(self):
+        self.config = get_config()
+        # Create DB manager
+        db_path = Path(__file__).parent / "database" / "sentinel_data.db"
+        self.db = DatabaseManager(db_path)
+        
+        # Reuse existing components
+        self.loader = DataLoader()
+        self.chart_gen = ChartGenerator(self.loader)
+        self.ai = AIAnalyzer()
+        
+    def sync_battles(self) -> List[Dict]:
+        """
+        Sync today's trades into battles and create/update journal entries.
+        Returns list of journal entries (merged with pending status).
+        """
+        # 1. Get today's trades
+        trades = self.loader.get_today_trades()
+        if not trades:
+            return []
+            
+        # 2. Cluster into battles
+        # We assume cluster_trades_into_battles is available or we define it locally
+        try:
+            battles = cluster_trades_into_battles(trades)
+        except NameError:
+            # Fallback if function not found (should be defined in this file)
+            battles = self._cluster_trades_fallback(trades)
+            
+        synced_entries = []
+        
+        for battle in battles:
+            # Generate deterministic ID based on start time
+            battle_id = f"B_{battle.start_time.strftime('%Y%m%d_%H%M%S')}"
+            
+            # Key Metrics
+            pnl = battle.total_profit
+            count = len(battle.trades)
+            
+            # Check if exists
+            existing = self.db.get_journal_entry(battle_id)
+            
+            if not existing:
+                # Create new pending entry
+                entry = {
+                    'battle_id': battle_id,
+                    'pnl': pnl,
+                    'trade_count': count,
+                    'start_time': battle.start_time.isoformat(),
+                    'end_time': battle.end_time.isoformat(),
+                    'status': 'pending',
+                    'strategy_tag': 'Unspecified',
+                    'user_notes': '',
+                    'emotion_score': 0
+                }
+                self.db.save_journal_entry(entry)
+                synced_entries.append(entry)
+            else:
+                synced_entries.append(existing)
+                
+        return synced_entries
+
+    def update_context(self, battle_id: str, strategy: str, notes: str, emotion: int) -> bool:
+        """Update user context for a battle"""
+        existing = self.db.get_journal_entry(battle_id)
+        if not existing:
+            return False
+            
+        existing['strategy_tag'] = strategy
+        existing['user_notes'] = notes
+        existing['emotion_score'] = emotion
+        
+        return self.db.save_journal_entry(existing)
+
+    def analyze_staged_battle(self, battle_id: str) -> bool:
+        """Run AI analysis on a specific staged battle"""
+        # 1. Get entry
+        entry = self.db.get_journal_entry(battle_id)
+        if not entry:
+            return False
+            
+        # 2. Reconstruct Battle Object
+        # We need to reload trades. For simplicity, we assume trades are in DB
+        # This is a bit tricky, but we can search trades by time range approx
+        start = datetime.fromisoformat(entry['start_time'])
+        end = datetime.fromisoformat(entry['end_time'])
+        
+        # Add buffer to ensure we get all trades
+        trades = self.loader.get_trades_for_period(
+            start - timedelta(seconds=1), 
+            end + timedelta(seconds=1)
+        )
+        
+        if not trades:
+            print(f"No trades found for battle {battle_id}")
+            return False
+            
+        battle = Battle(start, end, trades, entry['pnl'])
+        
+        # 3. Generate Chart (if not exists)
+        news = self.loader.get_news_for_period(
+            start - timedelta(hours=1), end + timedelta(minutes=30)
+        )
+        news_context = ", ".join([f"{n.currency} {n.event_name}" for n in news])
+        
+        chart_path = self.chart_gen.generate_battle_chart(battle, news)
+        
+        # 4. Prepare AI Context
+        chart_base64 = None
+        if chart_path and chart_path.exists():
+            with open(chart_path, 'rb') as f:
+                chart_base64 = base64.b64encode(f.read()).decode()
+        
+        # Inject User Context
+        user_context = f"""
+        User Strategy: {entry.get('strategy_tag', 'N/A')}
+        User Notes: "{entry.get('user_notes', '-')}"
+        Emotion Score: {entry.get('emotion_score', 0)}/5
+        """
+        
+        # 5. Analyze
+        # Modifying prompt context slightly by appending user context
+        final_context = f"{news_context}\n\nUSER CONTEXT:\n{user_context}"
+        
+        analysis_text = self.ai.analyze_battle(battle, final_context, chart_base64)
+        
+        if analysis_text:
+            # Update DB with analysis
+            self.db.update_journal_analysis(battle_id, {
+                'ai_analysis': analysis_text,
+                'ai_coaching': 'See analysis', # Placeholder
+                'ai_grade': 'C' # Placeholder
+            })
+            return True
+            
+        return False
+
+    def _cluster_trades_fallback(self, trades: List[Trade]) -> List[Battle]:
+        """Simple clustering if main function missing"""
+        if not trades: return []
+        sorted_trades = sorted(trades, key=lambda t: t.open_time)
+        battles = []
+        current_battle_trades = []
+        
+        for trade in sorted_trades:
+            if not current_battle_trades:
+                current_battle_trades.append(trade)
+                continue
+                
+            last_trade = current_battle_trades[-1]
+            time_diff = (trade.open_time - last_trade.close_time).total_seconds() / 60
+            
+            if time_diff <= 15:
+                current_battle_trades.append(trade)
+            else:
+                start = min(t.open_time for t in current_battle_trades)
+                end = max(t.close_time for t in current_battle_trades)
+                pnl = sum(t.profit for t in current_battle_trades)
+                battles.append(Battle(start, end, current_battle_trades, pnl))
+                current_battle_trades = [trade]
+                
+        if current_battle_trades:
+            start = min(t.open_time for t in current_battle_trades)
+            end = max(t.close_time for t in current_battle_trades)
+            pnl = sum(t.profit for t in current_battle_trades)
+            battles.append(Battle(start, end, current_battle_trades, pnl))
+            
+        return battles
 
 # =============================================================================
 # REPORT GENERATOR

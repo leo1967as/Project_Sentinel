@@ -12,6 +12,7 @@ from .mode_indicator import ModeIndicatorWidget
 from .tick_stats import TickStatsWidget
 from .news_table import NewsTableWidget
 from .log_viewer import LogViewerWidget
+from .staging_tab import StagingTab
 
 __all__ = [
     'ConnectionCard',
@@ -24,4 +25,5 @@ __all__ = [
     'TickStatsWidget',
     'NewsTableWidget',
     'LogViewerWidget',
+    'StagingTab',
 ]

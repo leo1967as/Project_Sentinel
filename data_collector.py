@@ -166,7 +166,43 @@ class DatabaseManager:
                     close_time TEXT,
                     magic INTEGER,
                     comment TEXT,
+                    battle_id TEXT,
+                    r_multiple REAL,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # --- MIGRATION: Update existing tables ---
+            try:
+                cursor.execute("ALTER TABLE trades ADD COLUMN battle_id TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column likely exists
+                
+            try:
+                cursor.execute("ALTER TABLE trades ADD COLUMN r_multiple REAL")
+            except sqlite3.OperationalError:
+                pass
+                
+            # Journal Table (Staging Order)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS journal_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    battle_id TEXT UNIQUE NOT NULL,
+                    strategy_tag TEXT,
+                    user_notes TEXT,
+                    emotion_score INTEGER,
+                    pnl REAL NOT NULL,
+                    trade_count INTEGER,
+                    start_time TEXT,
+                    end_time TEXT,
+                    r_multiple REAL,
+                    ai_analysis TEXT,
+                    ai_coaching TEXT,
+                    ai_grade TEXT,
+                    chart_path TEXT,
+                    status TEXT DEFAULT 'pending',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    analyzed_at TEXT
                 )
             """)
             
@@ -371,6 +407,78 @@ class DatabaseManager:
             if self.insert_trade(trade):
                 inserted += 1
         return inserted
+
+    def save_journal_entry(self, entry_data: Dict) -> bool:
+        """Create or update journal entry"""
+        with self._lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            try:
+                # Upsert logic
+                columns = ', '.join(entry_data.keys())
+                placeholders = ', '.join(['?'] * len(entry_data))
+                sql = f"INSERT OR REPLACE INTO journal_entries ({columns}) VALUES ({placeholders})"
+                cursor.execute(sql, list(entry_data.values()))
+                conn.commit()
+                return True
+            except Exception as e:
+                print(f"[DB] Save journal error: {e}")
+                return False
+            finally:
+                conn.close()
+
+    def get_journal_entry(self, battle_id: str) -> Optional[Dict]:
+        """Get single journal entry by battle_id"""
+        with self._lock:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM journal_entries WHERE battle_id = ?", (battle_id,))
+            row = cursor.fetchone()
+            conn.close()
+            return dict(row) if row else None
+
+    def get_pending_battles(self) -> List[Dict]:
+        """Get all battles pending review/analysis"""
+        with self._lock:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            # Get pending entries ordered by time desc
+            cursor.execute("""
+                SELECT * FROM journal_entries 
+                WHERE status = 'pending' 
+                ORDER BY start_time DESC
+            """)
+            results = [dict(row) for row in cursor.fetchall()]
+            conn.close()
+            return results
+
+    def update_journal_analysis(self, battle_id: str, analysis: Dict) -> bool:
+        """Update entry with AI analysis results"""
+        with self._lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    UPDATE journal_entries 
+                    SET ai_analysis = ?, ai_coaching = ?, ai_grade = ?, 
+                        status = 'analyzed', analyzed_at = ?
+                    WHERE battle_id = ?
+                """, (
+                    analysis.get('ai_analysis'),
+                    analysis.get('ai_coaching'),
+                    analysis.get('ai_grade'),
+                    datetime.now().isoformat(),
+                    battle_id
+                ))
+                conn.commit()
+                return True
+            except Exception as e:
+                print(f"[DB] Update analysis error: {e}")
+                return False
+            finally:
+                conn.close()
 
 # =============================================================================
 # TRADE COLLECTOR
