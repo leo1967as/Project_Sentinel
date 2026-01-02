@@ -341,10 +341,12 @@ class ChartGenerator:
     
     def _get_mt5_data(self, symbol: str, timeframe, start: datetime, end: datetime) -> pd.DataFrame:
         """Fetch candle data from MT5"""
-        if not mt5.terminal_info():
-            if not mt5.initialize():
-                logger.error("MT5 init failed for chart generation")
-                return pd.DataFrame()
+        from utils.mt5_connect import get_mt5_manager
+        manager = get_mt5_manager()
+        
+        if not manager.ensure_connected():
+            logger.error("MT5 connection failed for chart generation")
+            return pd.DataFrame()
                 
         rates = mt5.copy_rates_range(symbol, timeframe, start, end)
         if rates is None or len(rates) == 0:

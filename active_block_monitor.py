@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import Set, Optional, List, Dict
 from pathlib import Path
 from dotenv import load_dotenv
+from utils.mt5_connect import get_mt5_manager
 
 # Load .env file
 load_dotenv(Path(__file__).parent / ".env")
@@ -148,17 +149,17 @@ class TradingGuardian:
     # =========================================================================
     
     def connect(self) -> bool:
-        """Connect to MT5 terminal with retry logic"""
-        for attempt in range(MT5_MAX_RECONNECT_ATTEMPTS):
-            if mt5.initialize():
-                account = mt5.account_info()
-                if account:
-                    self.log_action(
-                        "CONNECTED", 
-                        f"Account: {account.login} | Server: {account.server}",
-                        "SUCCESS"
-                    )
-                    return True
+        """Connect to MT5 terminal using centralized manager"""
+        manager = get_mt5_manager()
+        if manager.ensure_connected():
+            account = mt5.account_info()
+            if account:
+                self.log_action(
+                    "CONNECTED", 
+                    f"Account: {account.login} | Server: {account.server}",
+                    "SUCCESS"
+                )
+                return True
             
             error = mt5.last_error()
             self.log_action(

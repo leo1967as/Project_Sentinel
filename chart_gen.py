@@ -18,10 +18,12 @@ import numpy as np
 
 def get_data(symbol, timeframe, n=100):
     """ดึงข้อมูลแท่งเทียนจาก MT5"""
-    if not mt5.terminal_info():
-        if not mt5.initialize():
-            print("❌ Failed to initialize MT5")
-            return None
+    from utils.mt5_connect import get_mt5_manager
+    manager = get_mt5_manager()
+    
+    if not manager.ensure_connected():
+        print("❌ Failed to connect to MT5")
+        return None
     
     rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, n)
     if rates is None or len(rates) == 0:
@@ -308,7 +310,9 @@ def create_trade_chart(symbol, ticket_id, entry_price=0, sl=0, tp=0,
 
 
 if __name__ == "__main__":
-    if mt5.initialize():
+    from utils.mt5_connect import get_mt5_manager
+    manager = get_mt5_manager()
+    if manager.connect():
         result = create_trade_chart("XAUUSD", "test_full")
         print(f"Result: {result}")
-        mt5.shutdown()
+        manager.disconnect()

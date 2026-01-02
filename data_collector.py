@@ -338,21 +338,22 @@ class TickCollector:
         self.running = False
     
     def connect(self) -> bool:
-        """Connect to MT5"""
-        for attempt in range(MT5_MAX_RECONNECT_ATTEMPTS):
-            if mt5.initialize():
-                # Select symbol
-                if not mt5.symbol_select(self.symbol, True):
-                    print(f"[TICK] Warning: Could not select {self.symbol}")
-                    
-                account = mt5.account_info()
-                if account:
-                    print(f"[TICK] Connected: {account.login} @ {account.server}")
-                    return True
-            
-            print(f"[TICK] Connection attempt {attempt + 1} failed, retrying...")
-            time.sleep(MT5_RECONNECT_DELAY)
+        """Connect to MT5 using centralized manager"""
+        from utils.mt5_connect import get_mt5_manager
+        manager = get_mt5_manager()
         
+        if manager.ensure_connected():
+            # Select symbol
+            if not mt5.symbol_select(self.symbol, True):
+                print(f"[TICK] Warning: Could not select {self.symbol}")
+                
+            account = mt5.account_info()
+            if account:
+                print(f"[TICK] Connected: {account.login} @ {account.server}")
+                return True
+        
+        print(f"[TICK] Connection failed")
+        return False
         return False
     
     def disconnect(self):
