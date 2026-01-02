@@ -2,14 +2,14 @@
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, time
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QListWidget, 
     QListWidgetItem, QLabel, QPushButton, QTextEdit, QComboBox, 
-    QGroupBox, QCheckBox, QScrollArea, QFrame, QMessageBox, QProgressBar
+    QGroupBox, QCheckBox, QScrollArea, QFrame, QMessageBox, QProgressBar, QDateEdit
 )
-from PySide6.QtCore import Qt, Slot, Signal, QSize
+from PySide6.QtCore import Qt, Slot, Signal, QSize, QDate
 from PySide6.QtGui import QPixmap, QIcon, QColor, QFont
 
 from daily_report import JournalManager
@@ -45,6 +45,16 @@ class StagingTab(QWidget):
         self.analyze_btn.setEnabled(False)
         
         toolbar.addWidget(self.refresh_btn)
+        
+        # Date Picker
+        toolbar.addSpacing(10)
+        toolbar.addWidget(QLabel("Date:"))
+        self.date_picker = QDateEdit()
+        self.date_picker.setCalendarPopup(True)
+        self.date_picker.setDate(QDate.currentDate())
+        self.date_picker.dateChanged.connect(self.refresh_battles)
+        toolbar.addWidget(self.date_picker)
+        
         toolbar.addStretch()
         toolbar.addWidget(self.analyze_btn)
         
@@ -141,7 +151,26 @@ class StagingTab(QWidget):
         self.progress_bar.setRange(0, 0) # Indeterminate
         
         right_layout.addWidget(self.ai_response_view)
+        right_layout.addWidget(self.ai_response_view)
         right_layout.addWidget(self.progress_bar)
+        
+        # Share Button
+        self.btn_share_discord = QPushButton("📤 Share to Discord")
+        self.btn_share_discord.setStyleSheet("""
+            QPushButton {
+                background-color: #5865F2; 
+                color: white; 
+                font-weight: bold;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #4752C4;
+            }
+        """)
+        self.btn_share_discord.clicked.connect(self.share_to_discord)
+        self.btn_share_discord.setVisible(False)
+        right_layout.addWidget(self.btn_share_discord)
         
         # Add to Splitter
         splitter.addWidget(left_panel)
@@ -160,7 +189,13 @@ class StagingTab(QWidget):
         """Load battles from JournalManager"""
         self.battle_list.clear()
         try:
-            self.battles = self.journal_manager.sync_battles()
+            # Get date from picker
+            # Combine method to avoid refreshing on same date if not needed? 
+            # But "Refresh" button implies reload.
+            py_date = self.date_picker.date().toPython()
+            target_date = datetime.combine(py_date, time.min)
+            
+            self.battles = self.journal_manager.sync_battles(target_date)
             
             # Sort by start time desc (handle both str and datetime just in case)
             def get_time(item):
@@ -234,8 +269,10 @@ class StagingTab(QWidget):
         analysis = battle_data.get('ai_analysis', '')
         if analysis:
             self.ai_response_view.setMarkdown(analysis)
+            self.btn_share_discord.setVisible(True)
         else:
             self.ai_response_view.clear()
+            self.btn_share_discord.setVisible(False)
             
         # 3. Load Chart (Preview) NOT GENERATED YET?
         # We need to ask manager to generate preview if not exists?
@@ -310,3 +347,23 @@ class StagingTab(QWidget):
         finally:
             self.progress_bar.setVisible(False)
             self.analyze_btn.setEnabled(True)
+
+    def share_to_discord(self):
+        if not self.current_battle_id: 
+            return
+            
+        reply = QMessageBox.question(
+            self, "Share Analysis", 
+            "Send this analysis to Discord channel?\nThis will post the formatted advice log.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            try:
+                success = self.journal_manager.share_battle_to_discord(self.current_battle_id)
+                if success:
+                    QMessageBox.information(self, "Sent", "✅ Analysis sent to Discord successfully!")
+                else:
+                    QMessageBox.warning(self, "Failed", "❌ Failed to send analysis. Check logs/config.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An error occurred: {e}")

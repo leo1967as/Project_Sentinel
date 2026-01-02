@@ -22,11 +22,16 @@ import requests
 import json
 import io
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass, field
 import logging
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import numpy as np
+import MetaTrader5 as mt5
 
 # Matplotlib (non-interactive backend for server)
 import matplotlib
@@ -206,7 +211,7 @@ class DataLoader:
             SELECT * FROM trades 
             WHERE close_time BETWEEN ? AND ?
             ORDER BY open_time
-        """, (start.isoformat(), end.isoformat()))
+        """, (start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')))
         
         trades = []
         for row in cursor.fetchall():
@@ -401,6 +406,47 @@ class ChartGenerator:
             if 'ema50' in df.columns:
                 ax.plot(df.index, df['ema50'], color='#ffd60a', linewidth=1.0, alpha=0.8, label='EMA 50')
 
+    def _calculate_volume_profile(self, df: pd.DataFrame, bins: int = 50) -> Tuple[np.ndarray, np.ndarray, float]:
+        """Calculate Volume Profile (Price Levels vs Volume)"""
+        if df.empty:
+            return np.array([]), np.array([]), 0.0
+            
+        # 1. Price Range
+        high = df['high'].max()
+        low = df['low'].min()
+        
+        # 2. Create Histogram Bins
+        price_bins = np.linspace(low, high, bins)
+        volume_profile = np.zeros(bins - 1)
+        
+        # 3. Aggregate Volume (Simple approximation using close price)
+        # More accurate: distribute volume across high-low, but close is fast enough for overview
+        # Let's try distributing!
+        
+        # Vectorized approximation:
+        # Assign volume to the price bin of the 'close' price
+        # digitizing returns indices of bins
+        indices = np.digitize(df['close'], price_bins)
+        
+        # Clip indices to valid range (1 to bins-1) -> 0 to bins-2 for array
+        indices = np.clip(indices, 1, len(price_bins)-1) - 1
+        
+        # Sum volume per bin
+        # We need "tick_volume" or "real_volume"
+        vol_col = 'tick_volume' if 'tick_volume' in df.columns else 'volume'
+        if vol_col not in df.columns and 'real_volume' in df.columns:
+            vol_col = 'real_volume'
+            
+        if vol_col in df.columns:
+             # pandas add.at or numpy add.at
+             np.add.at(volume_profile, indices, df[vol_col].values)
+             
+        # 4. Find POC (Point of Control)
+        max_vol_idx = np.argmax(volume_profile)
+        poc_price = (price_bins[max_vol_idx] + price_bins[max_vol_idx+1]) / 2
+        
+        return volume_profile, price_bins, poc_price
+
     def generate_battle_chart(self, battle: Battle, news_events: List[NewsEvent] = None) -> Path:
         """
         Generate 4-Panel Multi-Timeframe Chart for AI Analysis
@@ -453,6 +499,34 @@ class ChartGenerator:
             
             # Draw Candles
             self._draw_candlestick(ax, df, show_ema=True)
+            
+            # Draw Volume Profile (H1/M15/M5)
+            if name in ['H1', 'M15', 'M5']:
+                vp, bins, poc = self._calculate_volume_profile(df)
+                if len(vp) > 0:
+                    # Create twin axis for volume
+                    ax_vol = ax.twiny()
+                    
+                    # Plot bars (Left side overlay)
+                    height = (bins[1] - bins[0]) * 0.8
+                    ax_vol.barh(bins[:-1], vp, height=height, alpha=0.15, color='#00d4ff', align='edge')
+                    
+                    # Highlight POC
+                    logger.debug(f"{name} POC: {poc}")
+                    ax.axhline(poc, color='#00d4ff', linestyle='--', linewidth=0.8, alpha=0.6)
+                    
+                    # Clean up volume axis
+                    ax_vol.set_xticklabels([])
+                    ax_vol.set_xticks([])
+                    ax_vol.spines['top'].set_visible(False)
+                    ax_vol.spines['bottom'].set_visible(False)
+                    ax_vol.spines['right'].set_visible(False)
+                    ax_vol.spines['left'].set_visible(False)
+                    
+                    # Ensure candles are on top
+                    ax.set_zorder(10)
+                    ax.patch.set_visible(False)
+                    ax_vol.set_zorder(0)
             
             # Draw Trades (Overlay logic)
             # Only draw trades on M1 and M5 to avoid clutter
@@ -879,6 +953,10 @@ class DiscordNotifier:
                 "footer": {"text": segment.get("footer", "Project Sentinel AI Coach 🤖")}
             }
             
+            # Add fields if present
+            if "fields" in segment:
+                embed["fields"] = segment["fields"]
+            
             # Truncate description if needed (Discord limit 4096)
             if len(embed["description"]) > 4000:
                 embed["description"] = embed["description"][:4000] + "\n...(truncated)"
@@ -942,15 +1020,21 @@ class JournalManager:
         # Reuse existing components
         self.loader = DataLoader()
         self.chart_gen = ChartGenerator(self.loader)
+        self.loader = DataLoader()
+        self.chart_gen = ChartGenerator(self.loader)
         self.ai = AIAnalyzer()
+        self.discord = DiscordNotifier()
         
-    def sync_battles(self) -> List[Dict]:
+    def sync_battles(self, target_date: datetime = None) -> List[Dict]:
         """
-        Sync today's trades into battles and create/update journal entries.
-        Returns list of journal entries (merged with pending status).
+        Sync trades into battles for a specific date (or today).
+        Returns list of journal entries.
         """
-        # 1. Get today's trades
-        trades = self.loader.get_today_trades()
+        # 1. Get trades
+        if target_date:
+            trades = self.get_trades_for_day(target_date)
+        else:
+            trades = self.loader.get_today_trades()
         if not trades:
             return []
             
@@ -995,6 +1079,55 @@ class JournalManager:
                 
         return synced_entries
 
+    def get_monthly_stats(self, year: int, month: int) -> Dict[str, Dict]:
+        """
+        Get aggregated stats for each day in a month, respecting Reset Hour.
+        Returns: { 'YYYY-MM-DD': {'pnl': float, 'count': int, 'wins': int} }
+        """
+        # Calculate range: From Day 1 Reset Hour to Next Month Day 1 Reset Hour
+        start_date = datetime(year, month, 1, self.config.reset_hour, 0)
+        
+        if month == 12:
+            next_month_start = datetime(year + 1, 1, 1, self.config.reset_hour, 0)
+        else:
+            next_month_start = datetime(year, month + 1, 1, self.config.reset_hour, 0)
+            
+        trades = self.loader.get_trades_for_period(start_date, next_month_start)
+        
+        stats = {}
+        for t in trades:
+            # Determine Business Date
+            # If closed before reset hour, it belongs to previous actual date
+            cutoff = t.close_time.replace(hour=self.config.reset_hour, minute=0, second=0, microsecond=0)
+            
+            if t.close_time < cutoff:
+                b_date = t.close_time.date() - timedelta(days=1)
+            else:
+                b_date = t.close_time.date()
+            
+                
+            key = b_date.strftime("%Y-%m-%d")
+            
+            if key not in stats:
+                stats[key] = {'pnl': 0.0, 'count': 0, 'wins': 0}
+            
+            stats[key]['pnl'] += t.profit
+            stats[key]['count'] += 1
+            if t.profit > 0:
+                stats[key]['wins'] += 1
+                
+        return stats
+
+    def get_trades_for_day(self, target_date: 'date') -> List[Trade]:
+        """Get trades for a specific business day (Reset to Reset)"""
+        if isinstance(target_date, datetime):
+            target_date = target_date.date()
+            
+        start = datetime.combine(target_date, dt_time(self.config.reset_hour, 0))
+        end = start + timedelta(days=1)
+        
+        return self.loader.get_trades_for_period(start, end)
+
     def update_context(self, battle_id: str, strategy: str, notes: str, emotion: int) -> bool:
         """Update user context for a battle"""
         existing = self.db.get_journal_entry(battle_id)
@@ -1030,7 +1163,12 @@ class JournalManager:
             print(f"No trades found for battle {battle_id}")
             return False
             
-        battle = Battle(start, end, trades, entry['pnl'])
+        battle = Battle(
+            trades=trades,
+            start_time=start, 
+            end_time=end, 
+            total_profit=entry['pnl']
+        )
         
         # 3. Generate Chart (if not exists)
         news = self.loader.get_news_for_period(
@@ -1070,6 +1208,11 @@ class JournalManager:
             
         return False
 
+    def generate_daily_report(self, date: datetime) -> bool:
+        """Generate and send report for specific date via DailyReportGenerator"""
+        generator = DailyReportGenerator() # Reuses singleton instance components effectively
+        return generator.generate_report(target_date=date)
+        
     def _cluster_trades_fallback(self, trades: List[Trade]) -> List[Battle]:
         """Simple clustering if main function missing"""
         if not trades: return []
@@ -1102,6 +1245,62 @@ class JournalManager:
             
         return battles
 
+    def share_battle_to_discord(self, battle_id: str) -> bool:
+        """Share a specific battle analysis to Discord"""
+        entry = self.db.get_journal_entry(battle_id)
+        if not entry or not entry.get('ai_analysis'):
+            logger.warning(f"No analysis found for battle {battle_id}")
+            return False
+            
+        # 1. Reconstruct Chart Path
+        # Try to find existing chart
+        try:
+            start_dt = datetime.fromisoformat(entry['start_time'])
+            chart_filename = f"battle_{start_dt.strftime('%Y%m%d_%H%M%S')}.png"
+            chart_path = CHART_DIR / chart_filename
+            
+            if not chart_path.exists():
+                logger.warning(f"Chart not found at {chart_path}")
+                # Optional: Regenerate? Too risky/slow without battle object reconstruction.
+                # Just send without image or try generic search?
+                chart_path = None
+        except Exception as e:
+            logger.warning(f"Error reconstructing chart path: {e}")
+            chart_path = None
+        
+        # 2. Prepare Rich Embed
+        analysis = entry['ai_analysis']
+        pnl = entry['pnl']
+        strategy = entry.get('strategy_tag', 'N/A')
+        emotion = entry.get('emotion_score', 0)
+        trade_count = entry.get('trade_count', 0)
+        
+        # Emoji for emotion
+        emo_map = {1: "😌 Zen", 2: "🧠 Focused", 3: "😐 Neutral", 4: "😤 Frustrated", 5: "🤬 Tilted"}
+        emo_str = emo_map.get(emotion, "Unknown")
+        
+        # Emoji for PnL
+        pnl_str = f"${pnl:+.2f}"
+        title_emoji = "💰" if pnl > 0 else "🔻"
+        
+        fields = [
+            {"name": "💵 P&L", "value": f"**{pnl_str}**", "inline": True},
+            {"name": "🧠 Emotion", "value": emo_str, "inline": True},
+            {"name": "🎯 Strategy", "value": strategy if strategy else "None", "inline": True},
+            {"name": "🔢 Trades", "value": str(trade_count), "inline": True},
+        ]
+        
+        segment = {
+            "title": f"{title_emoji} Battle #{battle_id[:8]} Analysis",
+            "description": analysis,
+            "color": 0x00ff88 if pnl > 0 else 0xff4757,
+            "footer": "Manual Share from Sentinel Journal 🕵️",
+            "fields": fields,
+            "image_path": chart_path
+        }
+        
+        return self.discord.send_report_segments([segment])
+
 # =============================================================================
 # REPORT GENERATOR
 # =============================================================================
@@ -1125,14 +1324,24 @@ class DailyReportGenerator:
         if not sent:
             logger.warning("No notifications sent (check config)")
             
-    def generate_report(self, mode: str = 'YESTERDAY') -> bool:
-        """Generate and send daily report (mode: 'YESTERDAY' or 'TODAY')"""
+    def generate_report(self, mode: str = 'YESTERDAY', target_date: datetime = None) -> bool:
+        """Generate and send daily report (mode: 'YESTERDAY' or 'TODAY' or specific date)"""
         logger.info("=" * 50)
-        logger.info(f"Starting Report Generation (Mode: {mode})")
+        logger.info(f"Starting Report Generation (Mode: {mode}, Target: {target_date})")
         logger.info("=" * 50)
         
         # 1. Load trades based on mode
-        if mode == 'TODAY':
+        if target_date:
+            report_title = f"📊 HISTORY REPORT ({target_date.strftime('%Y-%m-%d')})"
+            
+            # Logic for specific day (Reset to Reset)
+            start = datetime.combine(target_date.date(), dt_time(config.reset_hour, 0))
+            end = start + timedelta(days=1)
+            
+            trades = self.loader.get_trades_for_period(start, end)
+            no_trades_msg = f"No trades found for {target_date.strftime('%Y-%m-%d')}"
+            
+        elif mode == 'TODAY':
             trades = self.loader.get_today_trades()
             report_title = "📊 CURRENT SESSION REPORT (Today)"
             no_trades_msg = "No trades found for today's session"

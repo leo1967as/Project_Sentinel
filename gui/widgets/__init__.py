@@ -13,6 +13,7 @@ from .tick_stats import TickStatsWidget
 from .news_table import NewsTableWidget
 from .log_viewer import LogViewerWidget
 from .staging_tab import StagingTab
+from .history_tab import HistoryTab
 
 __all__ = [
     'ConnectionCard',
@@ -26,4 +27,5 @@ __all__ = [
     'NewsTableWidget',
     'LogViewerWidget',
     'StagingTab',
+    'HistoryTab',
 ]

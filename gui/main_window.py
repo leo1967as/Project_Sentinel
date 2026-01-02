@@ -393,9 +393,15 @@ class SentinelMainWindow(QMainWindow):
         
         self.tabs.addTab(dashboard_tab, "📊 Dashboard")
         
-        # Staging Tab
+        # Staging Tab (Journal)
         self.staging_tab = StagingTab()
         self.tabs.addTab(self.staging_tab, "🕵️ Journal")
+        
+        # History Tab (Calendar)
+        from gui.widgets.history_tab import HistoryTab
+        self.history_tab = HistoryTab(self.staging_tab.journal_manager) # Share manager
+        self.history_tab.requestEditJournal.connect(self.switch_to_journal)
+        self.tabs.addTab(self.history_tab, "📅 History")
         
         # Data Tab
         data_tab = QWidget()
@@ -464,6 +470,15 @@ class SentinelMainWindow(QMainWindow):
     # MONITORING
     # =========================================================================
     
+    def switch_to_journal(self, target_date):
+        """Switch to Journal tab and load specific date"""
+        index = self.tabs.indexOf(self.staging_tab)
+        if index != -1:
+            self.tabs.setCurrentIndex(index)
+            from PySide6.QtCore import QDate
+            qdate = QDate(target_date.year, target_date.month, target_date.day)
+            self.staging_tab.date_picker.setDate(qdate)
+            
     @Slot()
     def start_monitoring(self) -> None:
         """Start Guardian and Data workers"""
