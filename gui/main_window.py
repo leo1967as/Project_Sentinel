@@ -617,8 +617,8 @@ class SentinelMainWindow(QMainWindow):
     
     @Slot()
     def _on_settings_saved(self) -> None:
-        """Handle settings saved"""
-        self.log_viewer.append_log("INFO", "⚙️ Settings saved - restart monitoring to apply")
+        """Handle settings saved - auto-restart monitoring if active"""
+        self.log_viewer.append_log("INFO", "⚙️ Settings saved")
         
         # Reload config
         self._config = get_config()
@@ -627,10 +627,14 @@ class SentinelMainWindow(QMainWindow):
         threshold = self._config.max_loss_production
         self.pnl_gauge.set_threshold(threshold)
         self.log_viewer.append_log("INFO", f"New threshold: ${threshold}")
-
-        threshold = self._config.max_loss_production
-        self.pnl_gauge.set_threshold(threshold)
-        self.log_viewer.append_log("INFO", f"New threshold: ${threshold}")
+        
+        # Auto-restart monitoring if active
+        if self._is_monitoring:
+            self.log_viewer.append_log("INFO", "🔄 Auto-restarting monitoring with new settings...")
+            self._stop_monitoring()
+            # Use QTimer to give workers time to stop cleanly
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(500, self._start_monitoring)
 
     # =========================================================================
     # AI & DATA CONTROL
@@ -692,6 +696,26 @@ class SentinelMainWindow(QMainWindow):
             QMessageBox.information(self, "Success", "Daily Report generated and sent!")
         else:
             QMessageBox.warning(self, "Warning", "Report generation finished with errors. Check logs.")
+    
+    @Slot()
+    def force_sync_trades(self) -> None:
+        """Manually sync trade history from MT5 to database"""
+        self.log_viewer.append_log("INFO", "🔄 Starting manual trade sync...")
+        
+        try:
+            from data_collector import TradeCollector, DatabaseManager
+            from pathlib import Path
+            
+            db_path = Path(__file__).parent.parent / "database" / "sentinel_data.db"
+            db = DatabaseManager(db_path)
+            collector = TradeCollector(db)
+            count = collector.sync_trades()
+            
+            self.log_viewer.append_log("INFO", f"✅ Synced {count} new trades")
+            QMessageBox.information(self, "Sync Complete", f"Synced {count} new trades from MT5")
+        except Exception as e:
+            self.log_viewer.append_log("ERROR", f"Sync failed: {e}")
+            QMessageBox.warning(self, "Sync Failed", str(e))
 
     # =========================================================================
     # SIGNAL HANDLERS FROM WORKERS
