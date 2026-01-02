@@ -24,6 +24,7 @@ from typing import Set, Optional, List, Dict
 from pathlib import Path
 from dotenv import load_dotenv
 from utils.mt5_connect import get_mt5_manager
+from utils.time_utils import get_last_reset_time, get_server_time_or_fallback
 
 # Load .env file
 load_dotenv(Path(__file__).parent / ".env")
@@ -64,7 +65,7 @@ class GuardianState:
     is_trading_allowed: bool = True
     known_positions: Set[int] = field(default_factory=set)
     daily_pnl: float = 0.0
-    last_reset_date: datetime = field(default_factory=datetime.now)
+    last_reset_date: datetime = field(default_factory=get_last_reset_time)  # Uses server time, not local
     block_triggered_time: Optional[datetime] = None
     positions_closed_today: int = 0
     sneaky_positions_blocked: int = 0

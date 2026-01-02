@@ -311,6 +311,9 @@ class DatabaseManager:
             cursor.execute("SELECT COUNT(*) FROM news")
             news_count = cursor.fetchone()[0]
             
+            cursor.execute("SELECT COUNT(*) FROM trades")
+            trade_count = cursor.fetchone()[0]
+            
             cursor.execute("SELECT MIN(timestamp), MAX(timestamp) FROM ticks")
             tick_range = cursor.fetchone()
             
@@ -319,8 +322,122 @@ class DatabaseManager:
         return {
             'tick_count': tick_count,
             'news_count': news_count,
+            'trade_count': trade_count,
             'tick_date_range': tick_range
         }
+    
+    def insert_trade(self, trade_data: Dict) -> bool:
+        """Insert a single trade record, skip if duplicate"""
+        with self._lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO trades 
+                    (ticket, symbol, order_type, volume, open_price, close_price, 
+                     profit, open_time, close_time, magic, comment)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    trade_data['ticket'],
+                    trade_data['symbol'],
+                    trade_data['order_type'],
+                    trade_data['volume'],
+                    trade_data['open_price'],
+                    trade_data.get('close_price'),
+                    trade_data.get('profit'),
+                    trade_data['open_time'],
+                    trade_data.get('close_time'),
+                    trade_data.get('magic'),
+                    trade_data.get('comment')
+                ))
+                conn.commit()
+                inserted = cursor.rowcount > 0
+            except sqlite3.Error as e:
+                print(f"[DB] Insert trade error: {e}")
+                inserted = False
+            finally:
+                conn.close()
+            
+        return inserted
+
+    def insert_trades_batch(self, trades: List[Dict]) -> int:
+        """Insert multiple trades, skip duplicates. Returns count inserted."""
+        if not trades:
+            return 0
+            
+        inserted = 0
+        for trade in trades:
+            if self.insert_trade(trade):
+                inserted += 1
+        return inserted
+
+# =============================================================================
+# TRADE COLLECTOR
+# =============================================================================
+
+class TradeCollector:
+    """
+    Collects trade history from MT5 and saves to SQLite.
+    Runs periodically to sync closed deals.
+    """
+    
+    def __init__(self, db: DatabaseManager):
+        self.db = db
+        self.last_sync_time: Optional[datetime] = None
+        self.total_synced = 0
+    
+    def sync_trades(self) -> int:
+        """
+        Pull new closed trades from MT5 and save to DB.
+        Returns count of new trades inserted.
+        """
+        from utils.mt5_connect import get_mt5_manager
+        import MetaTrader5 as mt5
+        
+        manager = get_mt5_manager()
+        if not manager.ensure_connected():
+            print("[TRADE] MT5 not connected, skipping sync")
+            return 0
+        
+        # Get deals since last sync (or last 7 days for first run)
+        from_date = self.last_sync_time or (datetime.now() - timedelta(days=7))
+        to_date = datetime.now()
+        
+        deals = mt5.history_deals_get(from_date, to_date)
+        
+        if deals is None or len(deals) == 0:
+            return 0
+        
+        # Filter only closed trades (not deposits/withdrawals)
+        # Deal type 0 = BUY, 1 = SELL (entry), 2 = BUY (close), 3 = SELL (close)
+        closed_deals = [d for d in deals if d.type in [0, 1] and d.entry == 1]  # entry=1 means exit
+        
+        trades_to_insert = []
+        for deal in closed_deals:
+            trade_data = {
+                'ticket': deal.ticket,
+                'symbol': deal.symbol,
+                'order_type': 'BUY' if deal.type == 0 else 'SELL',
+                'volume': deal.volume,
+                'open_price': deal.price,  # For deals, this is the execution price
+                'close_price': deal.price,
+                'profit': deal.profit,
+                'open_time': datetime.fromtimestamp(deal.time).isoformat(),
+                'close_time': datetime.fromtimestamp(deal.time).isoformat(),
+                'magic': deal.magic,
+                'comment': deal.comment
+            }
+            trades_to_insert.append(trade_data)
+        
+        inserted = self.db.insert_trades_batch(trades_to_insert)
+        
+        if inserted > 0:
+            self.total_synced += inserted
+            print(f"[TRADE] Synced {inserted} new trades (total: {self.total_synced})")
+        
+        self.last_sync_time = datetime.now()
+        return inserted
 
 # =============================================================================
 # TICK COLLECTOR
